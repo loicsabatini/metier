@@ -1,5 +1,13 @@
 # Identifiants : jamais versionnés
 .env
+.env.*
+!.env.example
+
+# Secrets systèmes / certificats
+*.pem
+*.key
+*.crt
+
 # Environnement Python
 .venv/
 __pycache__/

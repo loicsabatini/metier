@@ -1,0 +1,131 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Comparer les métiers — le marché du marketing</title>
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
+<link rel="stylesheet" href="assets/commun.css?v=5">
+</head>
+<body>
+<main>
+  <div id="nav-ici"></div>
+  <h1>Comparer les métiers</h1>
+  <p class="sous" id="sous">Chargement des données…</p>
+
+  <div id="filtres-ici"></div>
+
+  <p class="compte" id="resume-comparaison"></p>
+  <div class="vide" id="vide-comparaison" hidden>Aucune offre ne correspond à cette sélection. Modifiez les filtres ci-dessus.</div>
+  <div class="grille comparaison-grille" id="graphiques-comparaison" style="margin-top:16px" hidden>
+    <div class="carte"><h3>Offres retenues par métier</h3><div class="zone haute"><canvas id="g-comp-volume"></canvas></div></div>
+    <div class="carte"><h3>Salaire brut annuel par métier <small>— médiane des minima et maxima</small></h3><div class="zone haute"><canvas id="g-comp-salaire"></canvas></div>
+      <p class="note">Seuls les métiers avec au moins trois offres affichant un salaire sont comparés.</p></div>
+    <div class="carte"><h3>Types de contrat <small>— part des offres de chaque métier</small></h3><div class="zone haute"><canvas id="g-comp-contrats"></canvas></div></div>
+    <div class="carte"><h3>Niveaux de poste <small>— part des offres de chaque métier</small></h3><div class="zone haute"><canvas id="g-comp-niveaux"></canvas></div></div>
+    <div class="carte"><h3>Expérience demandée <small>— part des offres de chaque métier</small></h3><div class="zone haute"><canvas id="g-comp-experience"></canvas></div></div>
+    <div class="carte"><h3>Formation demandée <small>— parmi les offres qui la précisent</small></h3><div class="zone haute"><canvas id="g-comp-formation"></canvas></div></div>
+    <div class="carte"><h3>Outils cités <small>— part des offres de chaque métier</small></h3><div class="zone haute"><canvas id="g-comp-outils"></canvas></div></div>
+    <div class="carte"><h3>Compétences associées <small>— part des offres de chaque métier</small></h3><div class="zone haute"><canvas id="g-comp-competences"></canvas></div></div>
+  </div>
+  <p class="note" id="note-termes"></p>
+
+  <footer id="pied"></footer>
+</main>
+
+<script src="assets/commun.js?v=5"></script>
+<script>
+/* ============ Comparaison des métiers sélectionnés ============ */
+const COULEURS_COMPARAISON = ["#0a5cff", "#ff6a00", "#54a878", "#8e5db7", "#d43d51", "#009aa6", "#ca8c00", "#677380"];
+
+function comparerRepartition(id, categories, metiers, obtenirValeur, obtenirDenominateur) {
+  const series = categories.map(([cle, libelle, couleurSerie]) => ({
+    label: libelle,
+    backgroundColor: couleurSerie,
+    data: metiers.map(m => {
+      const total = obtenirDenominateur(m.lot);
+      return total ? pct(m.lot.filter(o => obtenirValeur(o) === cle).length, total) : 0;
+    }),
+  })).filter(s => s.data.some(v => v > 0));
+  const labels = metiers.map(m => m.etiquette);
+  zoneSelonBarres(id, metiers.length, 34);
+  dessiner(id, "bar", { labels, datasets: series }, {
+    indexAxis: "y",
+    plugins: {
+      legend: { display: true, position: "bottom", labels: { boxWidth: 12, boxHeight: 12, padding: 10 } },
+      tooltip: { callbacks: { label: c => `${c.dataset.label} : ${Math.round(c.parsed.x)} %` } },
+    },
+    scales: {
+      x: { stacked: true, beginAtZero: true, max: 100, ticks: { callback: v => v + " %" } },
+      y: { stacked: true, grid: { display: true } },
+    },
+  });
+}
+
+function comparerTermes(id, metiers, cle) {
+  const termes = compter(metiers.flatMap(m => m.lot.flatMap(o => o[cle] || [])), x => x).slice(0, 8);
+  const vus = metiers.slice().sort((a, b) => b.lot.length - a.lot.length).slice(0, 8);
+  const datasets = vus.map((m, i) => ({
+    label: `${m.code} · ${court(m.libelle, 24)}`,
+    backgroundColor: COULEURS_COMPARAISON[i % COULEURS_COMPARAISON.length],
+    borderRadius: 3,
+    data: termes.map(([terme]) => pct(m.lot.filter(o => (o[cle] || []).includes(terme)).length, m.lot.length)),
+  })).filter(d => d.data.some(v => v > 0));
+  zoneSelonBarres(id, termes.length, 48);
+  dessiner(id, "bar", {
+    labels: termes.map(([terme]) => enLignes(terme, 28)),
+    datasets,
+  }, {
+    indexAxis: "y",
+    plugins: {
+      legend: { display: true, position: "bottom", labels: { boxWidth: 12, boxHeight: 12, padding: 10 } },
+      tooltip: { callbacks: { label: c => `${c.dataset.label} : ${Math.round(c.parsed.x)} % des offres` } },
+    },
+    scales: { x: { beginAtZero: true, ticks: { callback: v => v + " %" } }, y: { grid: { display: true } } },
+  });
+  return vus.length;
+}
+
+function rendre(offres, D) {
+  const f = Commun.f, lib = Commun.lib;
+  const metiers = [...f.metiers].map(code => ({
+    code,
+    libelle: lib[code]?.libelle || code,
+    etiquette: enLignes(`${code} · ${lib[code]?.libelle || code}`, 30),
+    lot: offres.filter(o => o.rome === code),
+  }));
+  const actifs = metiers.filter(m => m.lot.length > 0);
+  const n = offres.length;
+  document.getElementById("resume-comparaison").textContent =
+    `${n} offre${n > 1 ? "s" : ""} retenue${n > 1 ? "s" : ""} pour ${f.metiers.size} métier${f.metiers.size > 1 ? "s" : ""} sélectionné${f.metiers.size > 1 ? "s" : ""}. Les filtres de contrat et de niveau s'appliquent à tous les graphiques.`;
+  document.getElementById("vide-comparaison").hidden = n > 0;
+  document.getElementById("graphiques-comparaison").hidden = n === 0;
+  if (!n) return;
+
+  const couleursMetiers = metiers.map(m => COULEURS[lib[m.code]?.groupe] || couleur);
+  zoneSelonBarres("g-comp-volume", metiers.length, 34);
+  barres("g-comp-volume", metiers.map(m => m.etiquette), metiers.map(m => m.lot.length), true, " offres", couleursMetiers);
+
+  const salaires = actifs.map(m => ({ label: m.etiquette, n: m.lot.filter(o => o.smin != null).length, paire: fourchette(m.lot) }))
+    .filter(x => x.paire && x.n >= 3).sort((a, b) => a.paire[0] - b.paire[0]);
+  zoneSelonBarres("g-comp-salaire", salaires.length, 34);
+  flottantes("g-comp-salaire", salaires);
+
+  comparerRepartition("g-comp-contrats", CONTRATS.map(([k, l], i) => [k, l, COULEURS_COMPARAISON[i % COULEURS_COMPARAISON.length]]), actifs, familleContrat, lot => lot.length);
+  comparerRepartition("g-comp-niveaux", NIVEAUX.map(([k, l]) => [k, l, COUL_NIV[k]]), actifs, niv, lot => lot.length);
+  comparerRepartition("g-comp-experience", EXPS.map((l, i) => [l, l, COULEURS_COMPARAISON[i % COULEURS_COMPARAISON.length]]), actifs, trancheExp, lot => lot.length);
+
+  const avecFormation = lot => lot.filter(o => o.formation).length;
+  comparerRepartition("g-comp-formation", FORMATIONS.map((l, i) => [l, l, COULEURS_COMPARAISON[i % COULEURS_COMPARAISON.length]]), actifs,
+    o => o.formation, avecFormation);
+
+  const nbOutils = comparerTermes("g-comp-outils", actifs, "outils");
+  const nbCompetences = comparerTermes("g-comp-competences", actifs, "competences");
+  document.getElementById("note-termes").textContent =
+    `Outils et compétences : les huit éléments les plus cités dans la sélection, comparés pour les ${Math.min(8, actifs.length)} métiers ayant le plus d'offres. Les autres métiers restent inclus dans les filtres et les graphiques précédents. (${nbOutils} métiers comparés pour les outils, ${nbCompetences} pour les compétences.)`;
+}
+
+Commun.demarrer(rendre);
+</script>
+</body>
+</html>

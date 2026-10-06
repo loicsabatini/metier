@@ -9,7 +9,15 @@
 <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/leaflet.markercluster@1.5.3/dist/MarkerCluster.min.css">
 <script src="https://cdn.jsdelivr.net/npm/leaflet.markercluster@1.5.3/dist/leaflet.markercluster.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
-<link rel="stylesheet" href="assets/commun.css?v=3">
+<link rel="stylesheet" href="assets/commun.css?v=6">
+<style>
+.tableau-defile { overflow-x:auto; margin-top:10px; }
+.tableau-methodo { width:100%; border-collapse:collapse; font-size:.9rem; }
+.tableau-methodo th, .tableau-methodo td { padding:7px 9px; border-bottom:1px solid var(--trait); text-align:left; }
+.tableau-methodo th { color:var(--gris); font-weight:600; }
+.tableau-methodo td.nombre { text-align:right; white-space:nowrap; }
+.tableau-methodo tr.separation th { padding-top:14px; color:var(--encre); }
+</style>
 </head>
 <body>
 <main>
@@ -17,15 +25,43 @@
   <h1>Les métiers du marketing — le marché, lu dans les offres</h1>
   <p class="sous" id="sous">Chargement des données…</p>
 
+  <div class="filtres-source" role="group" aria-label="Filtrer les offres par source">
+    <button type="button" data-source-filtre="toutes" class="actif" aria-pressed="true">Toutes les sources</button>
+    <button type="button" data-source-filtre="france_travail" aria-pressed="false"><i class="pastille-source" style="--source-color:#2563eb"></i>France Travail</button>
+    <button type="button" data-source-filtre="welcome_to_the_jungle" aria-pressed="false"><i class="pastille-source" style="--source-color:#d97706"></i>Welcome to the Jungle</button>
+    <button type="button" data-source-filtre="apec" aria-pressed="false"><i class="pastille-source" style="--source-color:#7c3aed"></i>Apec</button>
+  </div>
+  <p class="note" id="note-sources" aria-live="polite">Chargement des offres externes…</p>
+
+  <section aria-label="Indicateurs clés">
+    <h2>Indicateurs clés</h2>
+    <div class="chiffres kpi-grid" id="chiffres"></div>
+  </section>
+
   <!-- ============ 1. FILTRES (posés par commun.js) ============ -->
   <div id="filtres-ici"></div>
+  <p class="action-comparaison"><a class="bouton-comparaison" href="comparaison.html">Comparer ma sélection</a><span>Les métiers, contrats et niveaux cochés seront conservés.</span></p>
 
-  <!-- ============ 2. EN CHIFFRES ============ -->
-  <h2>En chiffres</h2>
-  <div class="chiffres" id="chiffres"></div>
+  <h2>Nettoyage des données</h2>
+  <div class="chiffres" id="entonnoir">
+    <div class="chiffre"><b>—</b><span>Offres brutes actives</span></div>
+    <div class="chiffre"><b>—</b><span>Sans doublons</span></div>
+    <div class="chiffre"><b>—</b><span>Emplois salariés</span></div>
+    <div class="chiffre"><b>—</b><span>Salaires exploitables</span></div>
+  </div>
+  <p class="note" id="note-entonnoir">Lecture du CSV des offres actives…</p>
+
+  <h2>Comparaison des sources</h2>
+  <div class="grille dashboard-grid">
+    <div class="carte"><h3>Offres sélectionnées par source</h3><div class="zone"><canvas id="g-sources"></canvas></div></div>
+    <div class="carte"><h3>Types de contrat par plateforme</h3><div class="zone"><canvas id="g-contrats"></canvas></div>
+      <div class="tableau-defile" id="table-contrats"></div>
+      <p class="note lecture" id="lecture-contrats"></p>
+      <p class="note">Les plateformes externes ne fournissent pas tous les détails de contrat présents dans France Travail.</p></div>
+  </div>
 
   <!-- ============ 3. OÙ SONT LES OFFRES ============ -->
-  <h2>Où sont les offres</h2>
+  <h2>Répartition des offres</h2>
   <div class="carte large"><h3>Chaque point est une offre — survolez pour la lire, cliquez pour l'ouvrir</h3>
     <div class="carte-outils">
       <button data-vue="france">France</button>
@@ -38,10 +74,37 @@
     </div>
     <div id="map"></div>
     <p class="note" id="note-carte"></p></div>
-  <div class="grille" style="margin-top:16px">
+  <div class="grille dashboard-grid">
     <div class="carte"><h3>Par département <small>— les 15 premiers</small></h3><div class="zone"><canvas id="g-departements"></canvas></div></div>
-    <div class="carte"><h3>Par type de contrat</h3><div class="zone"><canvas id="g-contrats"></canvas></div>
-      <p class="note">« Franchise », « Profession libérale » et « Profession commerciale » ne sont pas des emplois salariés : il s'agit de travailler à son compte. Le filtre « Indépendant », en haut, les regroupe.</p></div>
+    <div class="carte"><h3>Offres par métier <small>— code ROME lorsqu'il est fourni</small></h3><div class="zone"><canvas id="g-metiers"></canvas></div></div>
+  </div>
+
+  <h2>Expérience demandée</h2>
+  <div class="carte">
+    <h3>Tableau de fréquences <small>— durée minimale demandée</small></h3>
+    <p class="note">Les durées sont ordonnées par années révolues : « 1 an » couvre de 1 à moins de 2 ans. « Exigée, sans durée » est isolée hors de l'ordre.</p>
+    <div class="tableau-defile" id="table-experience"></div>
+    <p class="note" id="note-experience"></p>
+  </div>
+
+  <h2>Salaires</h2>
+  <div class="grille dashboard-grid">
+    <div class="carte"><h3>Salaires annuels par plateforme <small>— médiane et moyenne</small></h3>
+      <div class="zone"><canvas id="g-salaires-sources"></canvas></div>
+      <p class="note lecture" id="note-salaires-sources"></p></div>
+    <div class="carte"><h3>Distribution des salaires <small>— milieu de la fourchette annuelle publiée</small></h3>
+      <div class="zone haute"><canvas id="g-hist-salaires"></canvas></div>
+      <div class="tableau-defile" id="table-stats-salaires"></div>
+      <p class="note" id="note-salaires"></p>
+      <h3 style="margin-top:18px">Quartiles <small>— groupes de rangs aussi égaux que possible</small></h3>
+      <div class="tableau-defile" id="table-quartiles"></div></div>
+  </div>
+
+  <h2>Suivi temporel</h2>
+  <div class="carte">
+    <h3>Total des offres actives par jour <small>— tous les métiers</small></h3>
+    <div class="zone"><canvas id="g-serie-offres"></canvas></div>
+    <p class="note lecture" id="lecture-serie"></p>
   </div>
 
   <!-- ============ 4. LE RESTE, PAGE PAR PAGE ============ -->
@@ -53,33 +116,321 @@
     <a class="lien" href="mouvement.html"><b>Le marché bouge</b><span><i id="cle-mouvement">—</i> — les extractions successives, la fraîcheur des annonces, et les limites de ces chiffres.</span></a>
   </div>
 
+  <h2>Offres récentes <small id="nb-offres-recentes"></small></h2>
+  <div class="offres-scroll"><div class="liste" id="liste-offres-recentes"></div></div>
+
   <footer id="pied"></footer>
 </main>
 
-<script src="assets/commun.js?v=3"></script>
+<script src="assets/commun.js?v=5"></script>
 <script>
-/* ============ Accueil : chiffres, carte, départements, contrats ============ */
+/* ============ Accueil : chiffres, carte et graphiques ============ */
 let carte, calque;
+let sourceActive = "toutes", offresExternes = {};
+const SOURCES = [
+  { id: "france_travail", libelle: "France Travail", classe: "ft", couleur: "#2563eb" },
+  { id: "welcome_to_the_jungle", libelle: "Welcome to the Jungle", classe: "wttj", couleur: "#d97706", suffixe: "_wttj" },
+  { id: "apec", libelle: "Apec", classe: "apec", couleur: "#7c3aed", suffixe: "_apec" },
+];
+Chart.defaults.elements.bar.borderRadius = 6;
+Chart.defaults.plugins.tooltip.backgroundColor = "rgba(15,23,42,.96)";
+Chart.defaults.plugins.tooltip.borderColor = "#334155";
+Chart.defaults.plugins.tooltip.borderWidth = 1;
+Chart.defaults.plugins.tooltip.cornerRadius = 8;
+Chart.defaults.plugins.tooltip.padding = 12;
+Chart.defaults.plugins.tooltip.titleColor = "#f8fafc";
+Chart.defaults.plugins.tooltip.bodyColor = "#e2e8f0";
 
-function rendre(offres, D) {
+const EXPERIENCE_ORDONNEE = [
+  ["debutant", "Débutant accepté"], ["moins_un", "Moins d'un an"], ["un_an", "1 an"],
+  ["deux_ans", "2 ans"], ["trois_ans", "3 ans"], ["quatre_ans", "4 ans"],
+  ["cinq_ans", "5 ans"], ["six_plus", "6 ans et plus"],
+];
+const entierFr = n => new Intl.NumberFormat("fr-FR").format(n);
+const emploiSalarie = o => ["salarie", "apprentissage", "professionnalisation"].includes(o.nature);
+const salaireExploitable = o => Number.isFinite(o.smin) && o.smin >= 4000 && o.smin <= 250000;
+const dedoublonner = liste => [...new Map(liste.map(o => [String(o.id), o])).values()];
+
+function parserLigneCsv(ligne) {
+  const champs = [];
+  let champ = "", entreGuillemets = false;
+  for (let i = 0; i < ligne.length; i++) {
+    const c = ligne[i];
+    if (c === '"') {
+      if (entreGuillemets && ligne[i + 1] === '"') { champ += '"'; i++; }
+      else entreGuillemets = !entreGuillemets;
+    } else if (c === "," && !entreGuillemets) { champs.push(champ); champ = ""; }
+    else champ += c;
+  }
+  champs.push(champ);
+  return champs;
+}
+
+const echapperHTML = valeur => String(valeur ?? "").replace(/[&<>"']/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[c]);
+
+function normaliserOffresSource(texte, source) {
+  const lignes = texte.split(/\r?\n/).filter(x => x.trim());
+  const entete = parserLigneCsv(lignes.shift() || "");
+  const index = Object.fromEntries(entete.map((nom, i) => [nom, i]));
+  if (index.source == null || index.intitule == null || index.typeContrat == null) throw new Error("colonnes source, intitule ou typeContrat absentes");
+  return lignes.map((ligne, i) => {
+    const champs = parserLigneCsv(ligne);
+    const valeur = nom => index[nom] == null ? "" : champs[index[nom]] || "";
+    const contratBrut = valeur("typeContrat");
+    const type = contratBrut.toLowerCase();
+    const alternance = type.includes("alternance") || type.includes("apprentissage") || type.includes("stage") || type.includes("internship");
+    const salaireBrut = Number(String(valeur("salaireBrutAnnuel")).replace(/\s/g, "").replace(",", "."));
+    const dep = /\((2A|2B|\d{2,3})\)\s*$/.exec(valeur("ville"))?.[1] || null;
+    return {
+      id: `${source.id}-${valeur("id") || i}`, source: source.id, rome: "",
+      intitule: valeur("intitule"), entreprise: valeur("entreprise"), lieu: valeur("ville"), dep,
+      lat: null, lon: null,
+      contrat: type.includes("cdi") ? "CDI" : type.includes("cdd") || alternance ? "CDD" : "",
+      alternance, nature: alternance ? "apprentissage" : "salarie", niveau: "autre",
+      smin: Number.isFinite(salaireBrut) && salaireBrut > 0 ? salaireBrut : null,
+      smax: Number.isFinite(salaireBrut) && salaireBrut > 0 ? salaireBrut : null,
+      salaire: Number.isFinite(salaireBrut) && salaireBrut > 0 ? `Annuel de ${salaireBrut} Euros` : null,
+      date: valeur("datePublication"), url: "", exp_exige: null, exp_ans: null, secteur: null,
+    };
+  }).filter(o => o.intitule);
+}
+
+function chargerOffresExternes(D) {
+  const sourcesExternes = SOURCES.filter(s => s.suffixe);
+  Promise.all(sourcesExternes.map(async source => {
+    try {
+      const r = await fetch(`data/actives/${encodeURIComponent(D.date)}${source.suffixe}.csv`, { cache: "no-cache" });
+      if (!r.ok) throw new Error(`HTTP ${r.status}`);
+      return { source, offres: normaliserOffresSource(await r.text(), source) };
+    } catch (erreur) {
+      return { source, erreur };
+    }
+  })).then(resultats => {
+    offresExternes = Object.fromEntries(resultats.map(r => [r.source.id, r.offres || []]));
+    const comptes = resultats.map(r => r.erreur
+      ? `${r.source.libelle} indisponible (${r.erreur.message})`
+      : `${entierFr(r.offres.length)} offres ${r.source.libelle}`).join(" · ");
+    document.getElementById("note-sources").textContent = `${comptes}. Les filtres métier et niveau ne s'appliquent qu'à France Travail ; les sources externes n'ont pas de code ROME ni de niveau.`;
+    if (Commun.D) Commun.rafraichir();
+  });
+}
+
+function offresExternesSelonFiltres() {
+  const f = Commun.f;
+  return SOURCES.filter(s => s.suffixe && (sourceActive === "toutes" || sourceActive === s.id))
+    .flatMap(s => (offresExternes[s.id] || []).filter(o => !f || f.contrats.has(familleContrat(o))));
+}
+
+function rendreComparaisonSources(offresFT, offresExternesFiltrees) {
+  const selection = sourceActive === "toutes" ? SOURCES : SOURCES.filter(s => s.id === sourceActive);
+  const effectifs = { france_travail: offresFT.length };
+  for (const offre of offresExternesFiltrees) effectifs[offre.source] = (effectifs[offre.source] || 0) + 1;
+  dessiner("g-sources", "bar", {
+    labels: ["Offres sélectionnées"],
+    datasets: selection.map(s => ({ label: s.libelle, data: [effectifs[s.id]], backgroundColor: s.couleur, borderRadius: 6 })),
+  }, {
+    plugins: { legend: { display: true, position: "bottom", labels: { boxWidth: 12, boxHeight: 12 } },
+      tooltip: { callbacks: { label: c => `${c.dataset.label} : ${entierFr(c.parsed.y)} offres` } } },
+    scales: { y: { beginAtZero: true, ticks: { precision: 0 } } },
+  });
+}
+
+function rendreSalairesComparatifs(D) {
+  const resume = D.comparaison_sources || {};
+  const selection = sourceActive === "toutes" ? SOURCES : SOURCES.filter(s => s.id === sourceActive);
+  const datasets = selection.map(s => {
+    const stats = resume[s.id]?.salaires || {};
+    return { label: s.libelle, backgroundColor: s.couleur, data: [stats.mediane ?? null, stats.moyenne ?? null] };
+  });
+  dessiner("g-salaires-sources", "bar", { labels: ["Médiane", "Moyenne"], datasets }, {
+    plugins: { legend: { display: true, position: "bottom" }, tooltip: { callbacks: { label: c => `${c.dataset.label} : ${euro(c.parsed.y, 100)} brut/an` } } },
+    scales: { y: { beginAtZero: true, ticks: { callback: v => `${Math.round(v / 1000)} k€` }, title: { display: true, text: "Salaire brut annuel (€)" } } },
+  });
+  const detail = selection.map(s => {
+    const stats = resume[s.id]?.salaires;
+    return `${s.libelle} : ${stats?.effectif || 0} salaire${stats?.effectif > 1 ? "s" : ""} exploitable${stats?.effectif > 1 ? "s" : ""}`;
+  }).join(" · ");
+  document.getElementById("note-salaires-sources").textContent = detail + " — synthèse quotidienne, indépendante des filtres métier et contrat.";
+}
+
+function initialiserEntonnoir(D) {
+  fetch(`data/actives/${encodeURIComponent(D.date)}.csv`, { cache: "no-cache" })
+    .then(r => { if (!r.ok) throw new Error(`HTTP ${r.status}`); return r.text(); })
+    .then(texte => {
+      const lignes = texte.split(/\r?\n/).filter(x => x.trim());
+      const entete = parserLigneCsv(lignes.shift() || "");
+      const colonneId = entete.indexOf("id");
+      if (colonneId < 0) throw new Error("colonne id absente du CSV");
+      const ids = lignes.map(l => parserLigneCsv(l)[colonneId]).filter(Boolean);
+      const idsUniques = new Set(ids);
+      const parId = new Map(dedoublonner(D.offres).map(o => [String(o.id), o]));
+      const resolues = [...idsUniques].map(id => parId.get(id)).filter(Boolean);
+      const salariees = resolues.filter(emploiSalarie);
+      const salaires = salariees.filter(salaireExploitable);
+      const doublons = ids.length - idsUniques.size;
+      const sansId = lignes.length - ids.length;
+      const sansVersion = idsUniques.size - resolues.length;
+      const nonSalariees = resolues.length - salariees.length;
+      const sansSalaire = salariees.length - salaires.length;
+      const etapes = [
+        [lignes.length, "Offres brutes actives", "lignes du CSV quotidien"],
+        [idsUniques.size, "Sans doublons", `${entierFr(doublons)} doublon${doublons > 1 ? "s" : ""} écarté${doublons > 1 ? "s" : ""}`],
+        [salariees.length, "Emplois salariés", `${entierFr(nonSalariees)} offre${nonSalariees > 1 ? "s" : ""} non salariée ou de nature non classée écartée${nonSalariees > 1 ? "s" : ""}`],
+        [salaires.length, "Salaires exploitables", `${entierFr(sansSalaire)} salaire${sansSalaire > 1 ? "s" : ""} absent${sansSalaire > 1 ? "s" : ""} ou inexploitable${sansSalaire > 1 ? "s" : ""}`],
+      ];
+      document.getElementById("entonnoir").innerHTML = etapes.map(([n, libelle, detail]) =>
+        `<div class="chiffre"><b>${entierFr(n)}</b><span>${libelle}<br><small>${detail}</small></span></div>`).join("");
+      const ecartees = lignes.length - salaires.length;
+      document.getElementById("note-entonnoir").textContent =
+        `Effectif initial : ${entierFr(lignes.length)} lignes du CSV France Travail actif au ${dateFr(D.date)}. Écartées avant l'étape finale : ${entierFr(ecartees)} au total (${entierFr(doublons)} doublons, ${entierFr(sansId + sansVersion)} identifiant(s) ou version(s) non résolu(s), ${entierFr(nonSalariees)} offres non salariées/non classées et ${entierFr(sansSalaire)} sans salaire exploitable). Entonnoir France Travail global, indépendant des filtres ci-dessus.`;
+    })
+    .catch(e => { document.getElementById("note-entonnoir").textContent = `Entonnoir indisponible : lecture du CSV actif impossible (${e.message}).`; });
+}
+
+function classeExperience(o) {
+  const a = o.exp_ans;
+  if (o.exp_exige === "D") return "debutant";
+  if (o.exp_exige === "E" && (a == null || a <= 0)) return "exigee";
+  if (a == null) return "non_precisee";
+  if (a === 0) return "debutant";
+  if (a < 1) return "moins_un";
+  if (a < 2) return "un_an";
+  if (a < 3) return "deux_ans";
+  if (a < 4) return "trois_ans";
+  if (a < 5) return "quatre_ans";
+  if (a < 6) return "cinq_ans";
+  return "six_plus";
+}
+
+function rendreExperience(offres) {
+  const classes = new Map([...EXPERIENCE_ORDONNEE.map(([k]) => k), "exigee", "non_precisee"].map(k => [k, 0]));
+  for (const o of offres) {
+    const classe = classeExperience(o);
+    classes.set(classe, classes.get(classe) + 1);
+  }
+  const total = offres.length;
+  const valides = EXPERIENCE_ORDONNEE.reduce((s, [k]) => s + classes.get(k), 0);
+  let cumule = 0;
+  const ligne = (libelle, n, ordonnee) => {
+    if (ordonnee) cumule += n;
+    return `<tr><th scope="row">${libelle}</th><td class="nombre">${entierFr(n)}</td><td class="nombre">${pct(n, total)} %</td><td class="nombre">${ordonnee ? pct(n, valides) + " %" : "—"}</td><td class="nombre">${ordonnee ? pct(cumule, valides) + " %" : "—"}</td></tr>`;
+  };
+  const ordonnees = EXPERIENCE_ORDONNEE.map(([k, libelle]) => ligne(libelle, classes.get(k), true)).join("");
+  document.getElementById("table-experience").innerHTML =
+    `<table class="tableau-methodo"><thead><tr><th>Classe</th><th class="nombre">Effectif</th><th class="nombre">Pourcentage</th><th class="nombre">% valide</th><th class="nombre">% cumulé</th></tr></thead><tbody>${ordonnees}<tr class="separation"><th colspan="5">Hors ordre ordinal</th></tr>${ligne("Exigée, sans durée", classes.get("exigee"), false)}${ligne("Non précisée", classes.get("non_precisee"), false)}</tbody></table>`;
+  document.getElementById("note-experience").textContent =
+    `Base : ${entierFr(total)} offres actives dédoublonnées de la sélection. « % valide » et « % cumulé » portent sur les ${entierFr(valides)} offres classables dans les huit durées; les durées positives sont rangées par année commencée.`;
+}
+
+function rendreSalaires(offres) {
+  const valeurs = offres.filter(salaireExploitable).map(o => (o.smin + (Number.isFinite(o.smax) ? o.smax : o.smin)) / 2).sort((a, b) => a - b);
+  const limiteWttj = sourceActive === "toutes" || sourceActive === "welcome_to_the_jungle" ? " Aucune donnée de salaire WTTJ n'est fournie." : "";
+  const options = { parsing: false, plugins: { tooltip: { callbacks: { label: c => c.dataset.type === "line" ? c.dataset.label : `${entierFr(c.parsed.y)} offre${c.parsed.y > 1 ? "s" : ""}` } } },
+    scales: { x: { type: "linear", title: { display: true, text: "Salaire brut annuel (€)" }, ticks: { maxTicksLimit: 10, callback: v => `${Math.round(v / 1000)} k€` } },
+      y: { beginAtZero: true, title: { display: true, text: "Nombre d'offres" }, ticks: { precision: 0 } } } };
+  if (!valeurs.length) {
+    dessiner("g-hist-salaires", "bar", { datasets: [] }, options);
+    document.getElementById("table-stats-salaires").innerHTML = "";
+    document.getElementById("note-salaires").textContent = "Aucun salaire exploitable dans cette sélection d'offres salariées." + limiteWttj;
+    document.getElementById("table-quartiles").innerHTML = "";
+    return;
+  }
+
+  const n = valeurs.length, mini = valeurs[0], maxi = valeurs[n - 1];
+  const q1 = quantile(valeurs, .25), q3 = quantile(valeurs, .75), moyenne = valeurs.reduce((s, x) => s + x, 0) / n;
+  const medianeSalaire = mediane(valeurs);
+  const ecartType = Math.sqrt(valeurs.reduce((s, x) => s + (x - moyenne) ** 2, 0) / n);
+  const asymetrie = ecartType ? valeurs.reduce((s, x) => s + ((x - moyenne) / ecartType) ** 3, 0) / n : 0;
+  const largeurFD = 2 * (q3 - q1) / Math.cbrt(n);
+  const methodeClasses = largeurFD > 0 ? "règle de Freedman–Diaconis" : "racine carrée (IQR nul)";
+  const nbClasses = maxi === mini ? 1 : Math.max(1, Math.ceil((maxi - mini) / (largeurFD > 0 ? largeurFD : (maxi - mini) / Math.ceil(Math.sqrt(n)))));
+  const largeur = (maxi - mini || 1) / nbClasses;
+  const effectifs = Array(nbClasses).fill(0);
+  for (const x of valeurs) effectifs[Math.min(nbClasses - 1, Math.floor((x - mini) / largeur))]++;
+  const centres = effectifs.map((_, i) => ({ x: mini + (i + .5) * largeur, y: effectifs[i] }));
+  const sommet = Math.max(...effectifs);
+  const modes = effectifs.map((v, i) => v === sommet ? i : -1).filter(i => i >= 0)
+    .map(i => `${euro(mini + i * largeur, 100)}–${euro(mini + (i + 1) * largeur, 100)}`);
+  const datasets = [
+    { type: "bar", label: "Sources sélectionnées", data: centres, backgroundColor: "rgba(10,92,255,.65)", borderColor: couleur, borderWidth: 1 },
+    { type: "line", label: `Médiane : ${euro(medianeSalaire, 100)}`, data: [{ x: medianeSalaire, y: 0 }, { x: medianeSalaire, y: sommet * 1.1 }], borderColor: "#137333", borderWidth: 2, pointRadius: 0, tension: 0 },
+    { type: "line", label: `Moyenne : ${euro(moyenne, 100)}`, data: [{ x: moyenne, y: 0 }, { x: moyenne, y: sommet * 1.1 }], borderColor: "#1d1d1f", borderWidth: 2, borderDash: [6, 4], pointRadius: 0, tension: 0 },
+  ];
+  const optionsHistogramme = Object.assign({}, options, { plugins: Object.assign({}, options.plugins, { legend: { display: true, position: "bottom" } }) });
+  dessiner("g-hist-salaires", "bar", { datasets }, optionsHistogramme);
+
+  const signeAsymetrie = asymetrie > 0 ? "positive (étalement vers les hauts salaires)" : asymetrie < 0 ? "négative (étalement vers les bas salaires)" : "nulle";
+  const stats = [
+    ["Mode (classe la plus fréquente)", modes.join(" ; ") + ` (${entierFr(sommet)} offres)`],
+    ["Médiane", euro(medianeSalaire, 100)], ["Moyenne", euro(moyenne, 100)], ["Écart-type (population)", euro(ecartType, 100)],
+  ];
+  document.getElementById("table-stats-salaires").innerHTML =
+    `<table class="tableau-methodo"><thead><tr><th>Statistique</th><th>Valeur</th></tr></thead><tbody>${stats.map(([k, v]) => `<tr><th scope="row">${k}</th><td>${v}</td></tr>`).join("")}</tbody></table>`;
+  document.getElementById("note-salaires").textContent =
+    `Base : ${entierFr(n)} offres des sources sélectionnées avec salaire annuel exploitable après filtres. Valeur par offre : milieu de la fourchette publiée; histogramme en ${entierFr(nbClasses)} classes (${methodeClasses}, largeur ${euro(largeur, 100)}). Asymétrie ${signeAsymetrie} (skewness ${asymetrie.toLocaleString("fr-FR", { maximumFractionDigits: 2 })}) : la moyenne est tirée par la queue de distribution, la médiane est privilégiée pour décrire le salaire central.${limiteWttj}`;
+
+  let debutQuartile = 0;
+  const quartiles = [0, 1, 2, 3].map(i => {
+    const taille = Math.floor(n / 4) + (i < n % 4 ? 1 : 0);
+    const lot = valeurs.slice(debutQuartile, debutQuartile + taille);
+    debutQuartile += taille;
+    return ["Q" + (i + 1), lot.length ? `${euro(lot[0], 100)} à ${euro(lot[lot.length - 1], 100)}` : "—", lot.length];
+  });
+  document.getElementById("table-quartiles").innerHTML =
+    `<table class="tableau-methodo"><thead><tr><th>Groupe</th><th>Étendue des salaires</th><th class="nombre">Effectif</th></tr></thead><tbody>${quartiles.map(([k, intervalle, effectif]) => `<tr><th scope="row">${k}</th><td>${intervalle}</td><td class="nombre">${entierFr(effectif)}</td></tr>`).join("")}</tbody></table>`;
+}
+
+function rendreSerie(D, source) {
+  if (source !== "toutes" && source !== "france_travail") {
+    const libelle = SOURCES.find(s => s.id === source)?.libelle || source;
+    dessiner("g-serie-offres", "line", { labels: [], datasets: [] }, { plugins: { legend: { display: true } } });
+    document.getElementById("lecture-serie").textContent = `Aucun historique quotidien n'est fourni pour ${libelle}.`;
+    return;
+  }
+  const serie = (D.serie || []).map(j => ({ date: j.date, total: Object.values(j.par_metier || {}).reduce((s, n) => s + n, 0) }))
+    .sort((a, b) => a.date.localeCompare(b.date));
+  dessiner("g-serie-offres", "line", {
+    labels: serie.map(x => dateFr(x.date, true)),
+    datasets: [{ label: "France Travail", data: serie.map(x => x.total), borderColor: SOURCES[0].couleur, backgroundColor: "rgba(10,92,255,.25)", fill: true, tension: .2, pointRadius: 4 }],
+  }, { plugins: { legend: { display: true, position: "bottom" }, tooltip: { callbacks: { label: c => `${c.dataset.label} : ${entierFr(c.parsed.y)} offres actives` } } }, scales: { y: { beginAtZero: true, ticks: { precision: 0 } } } });
+  const note = document.getElementById("lecture-serie");
+  const limiteWttj = source === "toutes" ? " Historique WTTJ/Apec non fourni : cette série concerne France Travail." : "";
+  if (serie.length < 2) note.textContent = (serie.length ? `Une seule extraction est disponible (${entierFr(serie[0].total)} offres actives au ${dateFr(serie[0].date)}); une évolution sera lisible après les prochaines collectes.` : "Aucune extraction quotidienne disponible.") + limiteWttj;
+  else {
+    const debut = serie[0], fin = serie[serie.length - 1], delta = fin.total - debut.total;
+    const changement = delta === 0 ? "aucune variation nette" : `${delta > 0 ? "hausse" : "baisse"} de ${entierFr(Math.abs(delta))} offres (${debut.total ? pct(Math.abs(delta), debut.total) + " %" : "base initiale nulle"})`;
+    note.textContent = `Lecture France Travail : de ${entierFr(debut.total)} offres actives le ${dateFr(debut.date)} à ${entierFr(fin.date)}, soit une ${changement}. Série quotidienne tous métiers, sans les filtres de la page.${limiteWttj}`;
+  }
+}
+
+function rendre(offresFiltrees, D) {
+  const offresFT = sourceActive === "toutes" || sourceActive === "france_travail"
+    ? offresFiltrees.map(o => ({ ...o, source: "france_travail" })) : [];
+  const offresExternesFiltrees = sourceActive === "france_travail" ? [] : offresExternesSelonFiltres();
+  const offres = [...offresFT, ...offresExternesFiltrees];
   const lib = Commun.lib;
   const n = offres.length;
+  const analyse = dedoublonner(offres);
+  const libelleSource = sourceActive === "toutes" ? "toutes les sources" : SOURCES.find(s => s.id === sourceActive).libelle;
+  document.getElementById("compte").innerHTML = `<b>${n}</b> offre${n > 1 ? "s" : ""} affichée${n > 1 ? "s" : ""} — ${libelleSource}.`;
+  const aucune = document.getElementById("aucune");
+  aucune.hidden = n > 0;
+  aucune.textContent = "Aucune offre ne correspond à la source et aux filtres compatibles sélectionnés.";
 
   /* ---- En chiffres ---- */
-  const avecSal = offres.filter(o => o.smin != null);
-  const mins = avecSal.map(o => o.smin), maxs = avecSal.map(o => o.smax != null ? o.smax : o.smin);
-  const debutants = offres.filter(debutantAccepte).length;
+  const valeursSalaire = offres.filter(salaireExploitable)
+    .map(o => (o.smin + (Number.isFinite(o.smax) ? o.smax : o.smin)) / 2);
+  const nbCdi = offres.filter(o => familleContrat(o) === "cdi").length;
   const tuiles = [
-    [n, "offres sélectionnées"],
-    [offres.filter(o => o.dep === "63").length, "dans le Puy-de-Dôme"],
-    [offres.filter(o => AURA.has(o.dep)).length, "en Auvergne-Rhône-Alpes"],
-    [offres.filter(o => familleContrat(o) === "alt").length, "en alternance"],
-    [pct(debutants, n) + " %", `acceptent un débutant (${debutants})`],
-    [pct(avecSal.length, n) + " %", `affichent un salaire (${avecSal.length})`],
-    [avecSal.length ? euro(mediane(mins), 100) + " → " + euro(mediane(maxs), 100) : "—", "brut annuel affiché, médiane des minima → des maxima"],
-    [avecSal.length ? euro(net(mediane(mins)), 10) + " → " + euro(net(mediane(maxs)), 10) : "—", "net mensuel estimé (× 0,78 / 12, avant impôt)"],
+    [entierFr(n), "Total offres", libelleSource],
+    [valeursSalaire.length ? euro(mediane(valeursSalaire), 100) : "—", "Salaire médian", `${entierFr(valeursSalaire.length)} salaires exploitables`],
+    [`${pct(nbCdi, n)} %`, "% CDI", `${entierFr(nbCdi)} offres en CDI`],
+    [dateFr(D.date), "Date", "Dernière extraction"],
   ];
-  document.getElementById("chiffres").innerHTML = tuiles.map(([v, l]) => `<div class="chiffre"><b>${v}</b><span>${l}</span></div>`).join("");
+  document.getElementById("chiffres").innerHTML = tuiles.map(([v, l, detail]) =>
+    `<div class="chiffre kpi-card"><span class="kpi-label">${l}</span><b class="kpi-value">${v}</b><small class="kpi-detail">${detail}</small></div>`).join("");
+  rendreComparaisonSources(offresFT, offresExternesFiltrees);
+  rendreSalairesComparatifs(D);
 
   /* ---- Carte + départements + contrats ---- */
   calque.clearLayers();
@@ -98,12 +449,69 @@ function rendre(offres, D) {
   document.getElementById("note-carte").textContent =
     `${places} offres placées, ${n - places} sans lieu précis (« France », « Île-de-France »…). Les chiffres sont des grappes : cliquez pour zoomer, molette ou boutons pour naviguer. Point pâle : placé au centre du département.`;
 
-  const deps = compter(offres, o => o.dep || null).slice(0, 15);
-  barres("g-departements", deps.map(x => x[0]), deps.map(x => x[1]));
-  // Le détail des contrats, avec l'alternance sortie des CDI/CDD qui la portent :
-  // ce graphique dit alors la même chose que le filtre, en un peu plus précis.
-  const contrats = compter(offres, libContratOffre);
-  barres("g-contrats", contrats.map(x => x[0]), contrats.map(x => x[1]), true, " offres");
+  const deps = compter(offres, o => o.dep || "Lieu non précisé").slice(0, 15);
+  dessiner("g-departements", "bar", {
+    labels: deps.map(x => x[0]),
+    datasets: SOURCES.filter(s => offres.some(o => o.source === s.id)).map(s => ({
+      label: s.libelle, backgroundColor: s.couleur, borderRadius: 6,
+      data: deps.map(([dep]) => offres.filter(o => o.source === s.id && (o.dep || "Lieu non précisé") === dep).length),
+    })),
+  }, { indexAxis: "y", plugins: { legend: { display: true, position: "bottom" } }, scales: { x: { beginAtZero: true, ticks: { precision: 0 } } } });
+  const contrats = CONTRATS.map(([code, label]) => ({ code, label,
+    n: analyse.filter(o => familleContrat(o) === code).length }));
+  zoneSelonBarres("g-contrats", contrats.length, 30);
+  const totalParSource = Object.fromEntries(SOURCES.map(s => [s.id, analyse.filter(o => o.source === s.id).length]));
+  dessiner("g-contrats", "bar", {
+    labels: contrats.map(x => x.label),
+    datasets: SOURCES.filter(s => offres.some(o => o.source === s.id)).map(s => ({
+      label: s.libelle, sourceId: s.id, backgroundColor: s.couleur, borderRadius: 6,
+      data: contrats.map(x => analyse.filter(o => o.source === s.id && familleContrat(o) === x.code).length),
+    })),
+  }, {
+    indexAxis: "y",
+    plugins: { legend: { display: true, position: "bottom" }, tooltip: { callbacks: { label: c => {
+      const effectif = c.parsed.x;
+      const total = totalParSource[c.dataset.sourceId] || 0;
+      return `${c.dataset.label} : ${entierFr(effectif)} (${pct(effectif, total)} %)`;
+    } } } },
+    scales: { x: { beginAtZero: true, grid: { display: false }, ticks: { precision: 0 } }, y: { grid: { display: true } } },
+  });
+  const totalContrats = contrats.reduce((s, x) => s + x.n, 0);
+  document.getElementById("table-contrats").innerHTML =
+    `<table class="tableau-methodo"><thead><tr><th>Modalité</th><th class="nombre">Effectif (%)</th></tr></thead><tbody>${contrats.map(x => `<tr><th scope="row">${x.label}</th><td class="nombre">${entierFr(x.n)} (${pct(x.n, totalContrats)} %)</td></tr>`).join("")}</tbody></table>`;
+  const modaliteMax = contrats.reduce((a, b) => b.n > a.n ? b : a, contrats[0]);
+  document.getElementById("lecture-contrats").textContent = totalContrats
+    ? `Lecture : ${entierFr(modaliteMax.n)} offre${modaliteMax.n > 1 ? "s" : ""} sur ${entierFr(totalContrats)} sont classées « ${modaliteMax.label} » (${pct(modaliteMax.n, totalContrats)} %). Données : offres actives au ${dateFr(D.date)}.`
+    : `Aucune offre dans cette sélection. Données : offres actives au ${dateFr(D.date)}.`;
+  rendreExperience(analyse);
+
+  const metiers = compter(offres, o => o.rome || "ROME non renseigné").slice(0, 10).map(([code]) => ({
+    code, libelle: code === "ROME non renseigné" ? code : `${code} · ${lib[code]?.libelle || code}`,
+  }));
+  zoneSelonBarres("g-metiers", metiers.length, 48);
+  dessiner("g-metiers", "bar", {
+    labels: metiers.map(m => enLignes(m.libelle, 30)),
+    datasets: SOURCES.filter(s => offres.some(o => o.source === s.id)).map(s => ({
+      label: s.libelle, backgroundColor: s.couleur, borderRadius: 6,
+      data: metiers.map(m => offres.filter(o => o.source === s.id && (o.rome || "ROME non renseigné") === m.code).length),
+    })),
+  }, { indexAxis: "y", plugins: { legend: { display: true, position: "bottom" }, tooltip: { callbacks: { label: c => `${c.dataset.label} : ${entierFr(c.parsed.x)} offres` } } }, scales: { x: { beginAtZero: true, ticks: { precision: 0 } } } });
+  rendreSalaires(analyse.filter(emploiSalarie));
+  rendreSerie(D, sourceActive);
+
+  const recentes = [...offres].sort((a, b) => (b.date || "").localeCompare(a.date || "")).slice(0, 12);
+  document.getElementById("nb-offres-recentes").textContent = n ? `— les ${recentes.length} plus récentes sur ${n}` : "";
+  document.getElementById("liste-offres-recentes").innerHTML = recentes.length ? recentes.map(o => {
+    const source = SOURCES.find(s => s.id === o.source);
+    const titre = echapperHTML(o.intitule);
+    return `<div class="item">
+      <div class="titre">${o.url ? `<a href="${echapperHTML(o.url)}" target="_blank" rel="noopener">${titre}</a>` : titre}</div>
+      <div class="meta"><span class="badge-source ${source.classe}">${source.libelle}</span><span>${echapperHTML(o.entreprise || "employeur non précisé")}</span>
+        <span>·</span><span>${echapperHTML(o.lieu || "lieu non précisé")}</span><span>·</span><span>${echapperHTML(libContratOffre(o))}</span>
+        ${salaireCourt(o) ? `<span>·</span><span class="sal">${echapperHTML(salaireCourt(o))}</span>` : ""}
+        <span>·</span><span>publiée le ${echapperHTML(dateFr(o.date))}</span></div>
+    </div>`;
+  }).join("") : `<p class="note">Aucune offre dans cette sélection.</p>`;
 
   /* ---- Le chiffre-clé de chaque page ---- */
   const employeurs = new Set(offres.map(o => o.entreprise).filter(Boolean)).size;
@@ -112,7 +520,7 @@ function rendre(offres, D) {
   // Accord au pluriel : le nom et l'adjectif prennent un « s », le verbe prend « nt ».
   // Sans ça on lit « 0 employeur différents » ou « 944 offres affiche un salaire ».
   const s = k => k > 1 ? "s" : "", nt = k => k > 1 ? "nt" : "";
-  document.getElementById("cle-salaires").textContent = `${avecSal.length} offre${s(avecSal.length)} affiche${nt(avecSal.length)} un salaire`;
+  document.getElementById("cle-salaires").textContent = `${valeursSalaire.length} offre${s(valeursSalaire.length)} affiche${nt(valeursSalaire.length)} un salaire`;
   document.getElementById("cle-exigences").textContent = `${debutants} offre${s(debutants)} accepte${nt(debutants)} un débutant`;
   document.getElementById("cle-recruteurs").textContent = `${employeurs} employeur${s(employeurs)} différent${s(employeurs)}`;
   document.getElementById("cle-mouvement").textContent = `${fraiches} offre${s(fraiches)} de moins de 7 jours, ${extractions} extraction${s(extractions)}`;
@@ -138,7 +546,22 @@ document.querySelectorAll("[data-fond]").forEach(b => b.addEventListener("click"
   document.querySelectorAll("[data-fond]").forEach(x => x.classList.toggle("actif", x === b));
 }));
 
-Commun.demarrer(rendre);
+document.querySelectorAll("[data-source-filtre]").forEach(b => b.addEventListener("click", () => {
+  sourceActive = b.dataset.sourceFiltre;
+  document.querySelectorAll("[data-source-filtre]").forEach(x => {
+    const actif = x === b;
+    x.classList.toggle("actif", actif);
+    x.setAttribute("aria-pressed", String(actif));
+  });
+  if (Commun.D) Commun.rafraichir();
+}));
+
+function initialiserAccueil(D) {
+  initialiserEntonnoir(D);
+  chargerOffresExternes(D);
+}
+
+Commun.demarrer(rendre, initialiserAccueil);
 </script>
 </body>
 </html>

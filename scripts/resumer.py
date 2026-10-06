@@ -24,6 +24,7 @@ import sys
 import time
 from collections import defaultdict
 from pathlib import Path
+from statistics import mean, median
 
 import requests
 
@@ -181,12 +182,93 @@ MOTIF_SALAIRE = re.compile(
     r"(?:\s*à\s*(\d+(?:[.,]\d+)?)\s*euros)?",
     re.IGNORECASE,
 )
+MOTIF_FOURCHETTE_SALAIRE = re.compile(
+    r"(?:entre\s+)?(\d+(?:[ .]\d{3})*(?:[,.]\d+)?)\s*(k(?:€|eur)?|€|euros?)?"
+    r"\s*(?:à|[-–—]|et)\s*"
+    r"(\d+(?:[ .]\d{3})*(?:[,.]\d+)?)\s*(k(?:€|eur)?|€|euros?)?",
+    re.IGNORECASE,
+)
 MULTIPLICATEUR = {"annuel": 1, "mensuel": 12, "horaire": 1607}
 # Fenêtre de vraisemblance, en brut annuel. En dessous : l'employeur a saisi des
 # milliers d'euros dans la case « annuel » (« Annuel de 32.0 Euros à 38.0 Euros »).
 # Au dessus : il a saisi un salaire annuel dans la case « mensuel ». Le plancher
 # laisse passer les apprentis (27 % du SMIC = 5 832 € par an).
 SALAIRE_MIN, SALAIRE_MAX = 4000, 250000
+
+
+def contrat_comparatif(offre, source):
+    """Ramène les libellés des trois exports à CDI, CDD ou Alternance."""
+    if source == "france_travail":
+        if offre.get("alternance") or offre.get("nature") in {"apprentissage", "professionnalisation"}:
+            return "Alternance"
+        libelle = str(offre.get("contrat") or "").upper()
+    else:
+        libelle = str(offre.get("typeContrat") or "").upper()
+    if "ALTERNANCE" in libelle or "APPRENTI" in libelle or "STAGE" in libelle:
+        return "Alternance"
+    if "CDI" in libelle:
+        return "CDI"
+    if "CDD" in libelle:
+        return "CDD"
+    return None
+
+
+def salaire_comparatif(offre, source):
+    """Retourne une valeur annuelle brute comparable, ou None si elle manque."""
+    if source == "france_travail":
+        minimum, maximum = offre.get("smin"), offre.get("smax")
+        if not isinstance(minimum, (int, float)) or not SALAIRE_MIN <= minimum <= SALAIRE_MAX:
+            return None
+        maximum = maximum if isinstance(maximum, (int, float)) else minimum
+        valeur = (minimum + maximum) / 2
+    elif source == "apec":
+        try:
+            valeur = float(str(offre.get("salaireBrutAnnuel") or "").replace(" ", "").replace(",", "."))
+        except ValueError:
+            return None
+    else:
+        return None
+    return valeur if SALAIRE_MIN <= valeur <= SALAIRE_MAX else None
+
+
+def synthese_comparative(jour, offres_france_travail):
+    """Agrège les contrats et salaires des trois exports disponibles à la date donnée."""
+    sources = {
+        "france_travail": (offres_france_travail, True),
+        "welcome_to_the_jungle": (None, False),
+        "apec": (None, False),
+    }
+    suffixes = {"welcome_to_the_jungle": "_wttj", "apec": "_apec"}
+    for source, suffixe in suffixes.items():
+        fichier = RACINE / "data" / "actives" / f"{jour}{suffixe}.csv"
+        if fichier.exists():
+            with fichier.open(encoding="utf-8-sig", newline="") as f:
+                sources[source] = (list(csv.DictReader(f)), True)
+
+    resultat = {}
+    for source, (offres, disponible) in sources.items():
+        offres = offres or []
+        effectif = len(offres)
+        contrats = {}
+        for libelle in ("CDI", "CDD", "Alternance"):
+            nombre = sum(contrat_comparatif(o, source) == libelle for o in offres)
+            contrats[libelle] = {
+                "effectif": nombre,
+                "part_pct": round(100 * nombre / effectif, 1) if effectif else 0,
+            }
+        salaires = [v for o in offres if (v := salaire_comparatif(o, source)) is not None]
+        resultat[source] = {
+            "disponible": disponible,
+            "effectif": effectif,
+            "contrats": contrats,
+            "salaires": {
+                "effectif": len(salaires),
+                "mediane": round(median(salaires), 1) if salaires else None,
+                "moyenne": round(mean(salaires), 1) if salaires else None,
+                "unite": "EUR brut annuel",
+            },
+        }
+    return resultat
 
 
 def salaire_min_max(lib):
@@ -200,11 +282,19 @@ def salaire_min_max(lib):
     """
     if not lib:
         return None, None
-    m = MOTIF_SALAIRE.match(lib.strip())
-    if not m:
-        return None, None
-    mult = MULTIPLICATEUR[m.group(1).lower()]
-    vals = [float(x.replace(",", ".")) * mult for x in (m.group(2), m.group(3)) if x]
+    lib = lib.strip()
+    m = MOTIF_SALAIRE.match(lib)
+    if m:
+        mult = MULTIPLICATEUR[m.group(1).lower()]
+        vals = [float(x.replace(",", ".")) * mult for x in (m.group(2), m.group(3)) if x]
+    else:
+        m = MOTIF_FOURCHETTE_SALAIRE.search(lib)
+        if not m:
+            return None, None
+        facteur_k = any(unite and unite.lower().startswith("k") for unite in (m.group(2), m.group(4)))
+        montants = [(m.group(1), facteur_k), (m.group(3), facteur_k)]
+        vals = [float(nombre.replace(" ", "").replace(".", "").replace(",", "."))
+                * (1000 if facteur_k else 1) for nombre, facteur_k in montants]
     vals = [v for v in vals if SALAIRE_MIN <= v <= SALAIRE_MAX]
     return (round(min(vals)), round(max(vals))) if vals else (None, None)
 
@@ -273,7 +363,8 @@ class Geocodeur:
 
 
 def main():
-    jours = sorted((RACINE / "data" / "actives").glob("*.csv"))
+    jours = sorted(f for f in (RACINE / "data" / "actives").glob("*.csv")
+                   if re.fullmatch(r"\d{4}-\d{2}-\d{2}", f.stem))
     if not jours:
         raise SystemExit("Aucune extraction : lancez d'abord scripts/extraire.py")
     jour = jours[-1].stem
@@ -345,6 +436,7 @@ def main():
     resume = {
         "date": jour,
         "source": "France Travail — API Offres d'emploi v2",
+        "comparaison_sources": synthese_comparative(jour, offres),
         "requete": "une requête codeROME par métier, France entière",
         "metiers": [{"code": c, "libelle": l, "groupe": g, "coche": k,
                      "actives": sum(1 for o in offres if o["rome"] == c)}

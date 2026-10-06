@@ -12,6 +12,7 @@ l'API France Travail, enregistre les offres du jour et publie les chiffres.
 | [Ce qu'on vous demande](https://vincentfavarin.github.io/metier/exigences.html) | expérience, diplôme, outils, compétences |
 | [Qui recrute](https://vincentfavarin.github.io/metier/recruteurs.html) | entreprises, secteurs, employeurs ouverts aux débutants |
 | [Le marché bouge](https://vincentfavarin.github.io/metier/mouvement.html) | les extractions successives, la fraîcheur des annonces |
+| [Comparaisons](https://vincentfavarin.github.io/metier/comparaison.html) | offres, salaires, contrats, niveaux, expérience, formations et compétences par métier |
 
 Dossier de travail pour la séance « Écouter le marché de votre métier »
 (M2 MOD, IAE Clermont Auvergne). Dépôt de démonstration : il montre ce que
@@ -83,15 +84,17 @@ API France Travail  →  scripts/extraire.py  →  data/brut/<mois>/<ROME>.jsonl
   (libellé texte → min/max annuels bruts), outils cités dans les descriptions
   (grille à adapter), position (lat/lon de l'API, sinon centre de la commune
   via geo.api.gouv.fr, sinon ville principale du département).
-- Cinq pages HTML statiques, un chantier par page, toutes servies telles quelles.
+- Six pages HTML statiques, un chantier par page, toutes servies telles quelles.
   Chacune charge `data/resume.json` et recalcule ses graphiques Chart.js dans le
   navigateur selon la sélection ; net mensuel estimé = brut × 0,78 / 12.
   - `index.html` — les filtres, les chiffres-clés, la carte Leaflet (survol =
     l'offre, clic = l'annonce sur France Travail), les départements, les
-    contrats, et les liens vers les quatre autres pages.
+    contrats, les graphiques métiers et le bouton de comparaison.
   - `salaires.html` — ce que ça paie. `exigences.html` — ce qu'on vous demande.
     `recruteurs.html` — qui recrute. `mouvement.html` — le marché bouge, et les
     limites de ces chiffres (ancre `#limites`, liée depuis chaque pied de page).
+  - `comparaison.html` — les graphiques qui mettent les métiers sélectionnés en
+    regard; les filtres de l'accueil sont conservés d'une page à l'autre.
 - `assets/commun.js` et `assets/commun.css` — ce que les cinq pages partagent :
   chargement des données, panneau de filtres (mémorisé dans `localStorage`,
   replié ailleurs que sur l'accueil), barre de navigation, utilitaires et

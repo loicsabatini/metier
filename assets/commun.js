@@ -222,6 +222,7 @@ const PAGES = [
   ["exigences.html", "Ce qu'on vous demande"],
   ["recruteurs.html", "Qui recrute"],
   ["mouvement.html", "Le marché bouge"],
+  ["comparaison.html", "Comparaisons"],
 ];
 // Chemins relatifs partout : le site vit dans un sous-dossier (/metier/) sur GitHub Pages.
 const PAGE_ICI = (location.pathname.split("/").pop() || "index.html");
